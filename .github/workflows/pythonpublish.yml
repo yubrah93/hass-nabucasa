@@ -53,13 +53,37 @@ jobs:
       name: release
       url: https://pypi.org/p/hass-nabucasa
     permissions:
+      contents: read
       id-token: write
     steps:
+    - name: Checkout Rollouts reporter
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Download dists
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: "dist"
         path: "dist/"
 
+    - name: Report Rollouts deployment start
+      env:
+        CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        CHANGE_MONITOR_ENV: "release"
+        CHANGE_MONITOR_SERVICE: "hass-nabucasa"
+        CHANGE_MONITOR_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        CHANGE_MONITOR_ACTOR: "github-actions:${{ github.workflow }}:${{ github.job }}:hass-nabucasa:release"
+      run: |
+        export DEPLOY_VERSION="$(git rev-parse HEAD)"
+        bash .github/scripts/rollouts-reporter.sh bootstrap
+        bash .github/scripts/rollouts-reporter.sh start
     - name: Publish dists to PyPI
       uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
+    - name: Report Rollouts deployment finish
+      if: always()
+      env:
+        CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        CHANGE_MONITOR_ENV: "release"
+        CHANGE_MONITOR_SERVICE: "hass-nabucasa"
+        CHANGE_MONITOR_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        CHANGE_MONITOR_ACTOR: "github-actions:${{ github.workflow }}:${{ github.job }}:hass-nabucasa:release"
+        CHANGE_MONITOR_OUTCOME: ${{ job.status }}
+      run: bash .github/scripts/rollouts-reporter.sh finish
